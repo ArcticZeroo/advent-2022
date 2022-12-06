@@ -8,7 +8,7 @@ const START_OF_MESSAGE_SIZE: usize = 14;
 
 fn find_start_packet(input: &str, packet_size: usize) -> Option<usize> {
     for (i, window) in input.chars().collect::<Vec<char>>().windows(packet_size).enumerate() {
-        if window.iter().collect::<HashSet<&char>>().len() == packet_size {
+        if window.iter().all_unique() {
             return Some(i + packet_size);
         }
     }
