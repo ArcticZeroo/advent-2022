@@ -1,3 +1,5 @@
+extern crate core;
+
 mod days;
 mod common;
 
@@ -8,4 +10,5 @@ fn main() {
     days::day4::run();
     days::day5::run();
     days::day6::run();
+    days::day7::run();
 }
