@@ -76,7 +76,7 @@ fn part2(input: &str) -> usize {
 }
 
 pub fn run() {
-    println!("Day 6");
+    println!("Day 8");
     let input = read_input(8);
     println!("Part 1: {}", part1(input.as_str()));
     println!("Part 2: {}", part2(input.as_str()));
