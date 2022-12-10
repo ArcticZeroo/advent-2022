@@ -2,6 +2,7 @@ extern crate core;
 
 mod days;
 mod common;
+mod vm;
 
 fn main() {
     days::day1::run();

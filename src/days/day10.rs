@@ -1,62 +1,42 @@
-use std::cmp::{max, min};
-use std::collections::HashSet;
-use std::ops::Range;
 use itertools::Itertools;
-use crate::common::{Axis, GridDirection, Point, read_input};
-use regex::Regex;
+use crate::common::{read_input};
+use crate::vm::{VirtualMachine, Instruction};
 
 const CRT_WIDTH: usize = 40;
 const CRT_HEIGHT: usize = 6;
 
 fn part1(input: &str) -> i128 {
-    let mut cycle: i128 = 0;
-    let mut x: i128 = 1;
+    let instructions = input.split("\n").map(|line| VirtualMachine::parse_instruction(line));
+    let mut vm = VirtualMachine::new();
     let mut out: Vec<i128> = vec![];
-    for line in input.split("\n") {
-        let mut cycle_count = 1;
-        let mut x_increment: i128 = 0;
-        if line != "noop" {
-            cycle_count = 2;
-            let (_, amount_str) = line.split_once(" ").expect("Could not split");
-            x_increment = amount_str.parse().expect("Could not parse amount");
-        }
-
-        for _ in 0..cycle_count {
-            cycle += 1;
+    for instruction in instructions {
+        vm.execute_instruction(instruction, |vm_ref| -> () {
+            let cycle = vm_ref.get_cycle() as i128;
             if ((cycle - 20) % 40) == 0 {
+                let x = vm_ref.get_register_value("x").expect("Register X is missing");
                 out.push(cycle * x);
             }
-        }
-
-        x += x_increment;
+        });
     }
     out.iter().sum()
 }
 
 fn part2(input: &str) -> String {
-    let mut cycle: usize = 0;
-    let mut x_register: i128 = 1;
+    let instructions = input.split("\n").map(|line| VirtualMachine::parse_instruction(line));
     let mut crt: Vec<Vec<char>> = vec![vec![]; CRT_HEIGHT];
-    for line in input.split("\n") {
-        let is_noop = line == "noop";
+    let mut vm = VirtualMachine::new();
 
-        let cycle_count = if is_noop { 1 } else { 2 };
-        let mut x_increment: i128 = 0;
-        if !is_noop {
-            let (_, amount_str) = line.split_once(" ").expect("Could not split");
-            x_increment = amount_str.parse().expect("Could not parse amount");
-        }
-
-        for _ in 0..cycle_count {
-            let draw_y = cycle / CRT_WIDTH;
-            let draw_x = (cycle % CRT_WIDTH) as i128;
-            cycle += 1;
-            let is_sprite_visible = (x_register -1..=x_register +1).contains(&draw_x);
+    for instruction in instructions {
+        vm.execute_instruction(instruction, |vm_ref| {
+            let cycle = vm_ref.get_cycle();
+            let draw_y = (cycle - 1) / CRT_WIDTH;
+            let draw_x = ((cycle - 1) % CRT_WIDTH) as i128;
+            let x_register = vm_ref.get_register_value("x").unwrap_or(1);
+            let is_sprite_visible = (x_register - 1..=x_register + 1).contains(&draw_x);
             crt[draw_y].push(if is_sprite_visible { '#' } else { '.' });
-        }
-
-        x_register += x_increment;
+        });
     }
+
     crt.iter().map(|line| line.iter().join("")).join("\n")
 }
 
