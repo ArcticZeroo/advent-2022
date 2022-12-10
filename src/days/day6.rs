@@ -1,7 +1,5 @@
-use std::collections::HashSet;
 use itertools::Itertools;
 use crate::common::read_input;
-use regex::Regex;
 
 const START_OF_PACKET_SIZE: usize = 4;
 const START_OF_MESSAGE_SIZE: usize = 14;

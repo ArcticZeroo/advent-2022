@@ -34,7 +34,7 @@ impl Day1 {
 pub fn run() {
     println!("Day 1");
     let input = common::read_input(1);
-    let mut day = Day1::new(input.as_str());
+    let day = Day1::new(input.as_str());
     println!("Part 1: {}", day.part1());
     println!("Part 2: {}", day.part2());
 }

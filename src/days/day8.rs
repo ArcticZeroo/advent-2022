@@ -1,8 +1,4 @@
-use std::collections::HashSet;
-use std::ops::Range;
-use itertools::Itertools;
 use crate::common::read_input;
-use regex::Regex;
 
 fn parse_forest(input: &str) -> Vec<Vec<u32>> {
     input.split("\n")

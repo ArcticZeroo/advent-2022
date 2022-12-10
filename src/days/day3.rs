@@ -2,8 +2,6 @@ use std::collections::HashSet;
 use crate::common::{intersect_to_set, read_input, string_to_set};
 use itertools::Itertools;
 
-type Rucksack<'a> = (&'a str, &'a str);
-
 fn priority(value: &char) -> u32 {
     if value.is_uppercase() {
         return 27 + (*value as u32 - 'A' as u32);

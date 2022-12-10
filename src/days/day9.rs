@@ -1,9 +1,7 @@
 use std::cmp::{max, min};
 use std::collections::HashSet;
-use std::ops::Range;
 use itertools::Itertools;
-use crate::common::{Axis, GridDirection, Point, read_input};
-use regex::Regex;
+use crate::common::{GridDirection, Point, read_input};
 
 struct MoveInstruction {
     direction: GridDirection,
