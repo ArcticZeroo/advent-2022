@@ -146,7 +146,7 @@ impl<T> Grid<T> {
         self._y_bounds.clone()
     }
 
-    pub fn get_visited_positions<I>(&self) -> I where I: Iterator<Item = (&Point, &T)> {
-        self._grid.iter()
-    }
+    // pub fn get_visited_positions<I>(&self) -> I where I: Iterator<Item = (&Point, &T)> {
+    //     self._grid.iter()
+    // }
 }
