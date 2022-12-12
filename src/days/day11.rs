@@ -1,33 +1,77 @@
-use std::collections::{HashMap, VecDeque};
-use eval::Expr;
+use std::collections::{HashMap, HashSet, VecDeque};
 
-struct Monkey<'a> {
-    items: VecDeque<u128>,
+use num_bigint::BigUint;
+use num_traits::{Zero, One};
+
+use crate::common::read_input;
+
+enum Operation {
+    Add,
+    Multiply
+}
+
+enum Identifier {
+    Old,
+    Value(u128)
+}
+
+impl Identifier {
+    pub fn value(&self, old: &BigUint) -> BigUint {
+        match self {
+            Identifier::Old => old.clone(),
+            Identifier::Value(value) => BigUint::from(*value)
+        }
+    }
+}
+
+type MonkeyEquation = (Identifier, Operation, Identifier);
+
+fn parse_identifier(value: &str) -> Identifier {
+    if value == "old" {
+        return Identifier::Old;
+    }
+    return Identifier::Value(value.parse().unwrap());
+}
+
+fn parse_equation(equation: &str) -> MonkeyEquation {
+    let pieces: Vec<&str> = equation.split(" ").collect();
+    let left = parse_identifier(pieces[0]);
+    let operation = match pieces[1] {
+        "*" => Operation::Multiply,
+        "+" => Operation::Add,
+        _ => panic!("bad op str")
+    };
+    let right = parse_identifier(pieces[2]);
+    return (left, operation, right);
+}
+
+struct Monkey {
+    items: VecDeque<BigUint>,
     is_bored: bool,
-    operation: &'a str,
+    operation: MonkeyEquation,
     test_amount: u128,
     true_pass_id: usize,
     false_pass_id: usize,
     inspected_items: usize,
 }
 
-impl <'a> Monkey<'a> {
-    pub fn parse(lines: Vec<&'a str>) -> Monkey<'a> {
+impl Monkey {
+    pub fn parse(lines: Vec<&str>, is_bored: bool) -> Monkey {
         let starting_items_raw = lines[1];
         let operation_raw = lines[2];
         let test = lines[3];
         let if_true = lines[4];
         let if_false = lines[5];
         let (_, starting_item_values) = starting_items_raw.split_once("items: ").unwrap();
-        let starting_items: Vec<u128> = starting_item_values.split(", ").map(|item| item.parse::<u128>().unwrap()).collect();
+        let starting_items: Vec<BigUint> = starting_item_values.split(", ").map(|item| BigUint::from(item.parse::<u128>().unwrap())).collect();
         let (_, true_monkey_id_str) = if_true.split_once("monkey ").unwrap();
         let (_, false_monkey_id_str) = if_false.split_once("monkey ").unwrap();
         let (_, operation) = operation_raw.split_once("new = ").unwrap();
         let (_, divisible_by_str) = test.split_once("by ").unwrap();
         Monkey {
-            is_bored: true,
+            is_bored,
             items: VecDeque::from(starting_items),
-            operation,
+            operation: parse_equation(operation),
             true_pass_id: true_monkey_id_str.parse().unwrap(),
             false_pass_id: false_monkey_id_str.parse().unwrap(),
             test_amount: divisible_by_str.parse().unwrap(),
@@ -36,21 +80,28 @@ impl <'a> Monkey<'a> {
     }
 }
 
-fn do_monkey_diff(monkey: &mut Monkey) -> HashMap<usize, Vec<u128>> {
-    let mut diff: HashMap<usize, Vec<u128>> = HashMap::new();
+fn do_operation((left, operation, right): &MonkeyEquation, value: &BigUint) -> BigUint {
+    match operation {
+        Operation::Add => left.value(value) + right.value(value),
+        Operation::Multiply => left.value(value) * right.value(value)
+    }
+}
+
+fn do_monkey_diff(monkey: &mut Monkey) -> HashMap<usize, Vec<BigUint>> {
+    let mut diff: HashMap<usize, Vec<BigUint>> = HashMap::new();
     while !monkey.items.is_empty() {
         monkey.inspected_items += 1;
         let mut item = monkey.items.pop_front().unwrap();
-        item = Expr::new(monkey.operation).value("old", item as u64).exec().unwrap().as_u64().unwrap() as u128;
+        item = do_operation(&monkey.operation, &item);
         if monkey.is_bored {
-            item /= 3;
+            item /= BigUint::from(3 as u8);
         }
-        if item % monkey.test_amount == 0 {
+        if item.clone() % monkey.test_amount == Zero::zero() {
             let true_pass_id = monkey.true_pass_id;
-            diff.entry(true_pass_id).or_insert(vec![]).push(item);
+            diff.entry(true_pass_id).or_insert(vec![]).push(item.clone());
         } else {
             let false_pass_id = monkey.false_pass_id;
-            diff.entry(false_pass_id).or_insert(vec![]).push(item);
+            diff.entry(false_pass_id).or_insert(vec![]).push(item.clone());
         }
     }
     diff
@@ -66,12 +117,42 @@ fn do_round(monkeys: &mut Vec<Monkey>) {
 }
 
 fn part1(input: &str) -> usize {
-    let mut monkeys: Vec<Monkey> = input.split("\n\n").map(|group| Monkey::parse(group.split("\n").collect())).collect();
+    let mut monkeys: Vec<Monkey> = input.split("\n\n").map(|group| Monkey::parse(group.split("\n").collect(), true)).collect();
     for _ in 0..20 {
         do_round(&mut monkeys);
     }
     monkeys.sort_by(|a, b| b.inspected_items.cmp(&a.inspected_items));
     monkeys[0].inspected_items * monkeys[1].inspected_items
+}
+
+fn part2(input: &str) -> usize {
+    let mut monkeys: Vec<Monkey> = input.split("\n\n").map(|group| Monkey::parse(group.split("\n").collect(), false)).collect();
+    let unique_divisors: HashSet<u128> = monkeys.iter().map(|monkey| monkey.test_amount).collect();
+    let mut global_divisor = One::one();
+    for divisor in unique_divisors {
+        global_divisor *= BigUint::from(divisor);
+    }
+    for i in 0..10_000 {
+        println!("{}", i);
+        do_round(&mut monkeys);
+        for mut monkey in monkeys {
+            for item in &mut monkey.items {
+                if item % global_divisor == 0 {
+                    *item /= global_divisor;
+                }
+            }
+        }
+    }
+    monkeys.sort_by(|a, b| b.inspected_items.cmp(&a.inspected_items));
+    println!("{}, {}", monkeys[0].inspected_items, monkeys[1].inspected_items);
+    monkeys[0].inspected_items * monkeys[1].inspected_items
+}
+
+pub fn run() {
+    println!("Day 11");
+    let input = read_input(11);
+    println!("Part 1: {}", part1(input.as_str()));
+    println!("Part 2: {}", part2(input.as_str()));
 }
 
 #[cfg(test)]
@@ -107,5 +188,10 @@ Monkey 3:
     #[test]
     pub fn part1() {
         assert_eq!(10605, super::part1(INPUT));
+    }
+
+    #[test]
+    pub fn part2() {
+        assert_eq!(2713310158, super::part2(INPUT));
     }
 }
