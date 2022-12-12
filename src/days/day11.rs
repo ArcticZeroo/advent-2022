@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
-
-use num_bigint::BigUint;
-use num_traits::{Zero, One};
+use itertools::Itertools;
 
 use crate::common::read_input;
 
@@ -16,10 +14,10 @@ enum Identifier {
 }
 
 impl Identifier {
-    pub fn value(&self, old: &BigUint) -> BigUint {
+    pub fn value(&self, old: &u128) -> u128 {
         match self {
-            Identifier::Old => old.clone(),
-            Identifier::Value(value) => BigUint::from(*value)
+            Identifier::Old => *old,
+            Identifier::Value(value) => *value
         }
     }
 }
@@ -46,7 +44,7 @@ fn parse_equation(equation: &str) -> MonkeyEquation {
 }
 
 struct Monkey {
-    items: VecDeque<BigUint>,
+    items: VecDeque<u128>,
     is_bored: bool,
     operation: MonkeyEquation,
     test_amount: u128,
@@ -63,7 +61,7 @@ impl Monkey {
         let if_true = lines[4];
         let if_false = lines[5];
         let (_, starting_item_values) = starting_items_raw.split_once("items: ").unwrap();
-        let starting_items: Vec<BigUint> = starting_item_values.split(", ").map(|item| BigUint::from(item.parse::<u128>().unwrap())).collect();
+        let starting_items: Vec<u128> = starting_item_values.split(", ").map(|item| u128::from(item.parse::<u128>().unwrap())).collect();
         let (_, true_monkey_id_str) = if_true.split_once("monkey ").unwrap();
         let (_, false_monkey_id_str) = if_false.split_once("monkey ").unwrap();
         let (_, operation) = operation_raw.split_once("new = ").unwrap();
@@ -80,72 +78,60 @@ impl Monkey {
     }
 }
 
-fn do_operation((left, operation, right): &MonkeyEquation, value: &BigUint) -> BigUint {
+fn do_operation((left, operation, right): &MonkeyEquation, value: &u128) -> u128 {
     match operation {
         Operation::Add => left.value(value) + right.value(value),
         Operation::Multiply => left.value(value) * right.value(value)
     }
 }
 
-fn do_monkey_diff(monkey: &mut Monkey) -> HashMap<usize, Vec<BigUint>> {
-    let mut diff: HashMap<usize, Vec<BigUint>> = HashMap::new();
+fn do_monkey_diff(monkey: &mut Monkey, mod_amount: u128) -> HashMap<usize, Vec<u128>> {
+    let mut diff: HashMap<usize, Vec<u128>> = HashMap::new();
     while !monkey.items.is_empty() {
         monkey.inspected_items += 1;
         let mut item = monkey.items.pop_front().unwrap();
         item = do_operation(&monkey.operation, &item);
         if monkey.is_bored {
-            item /= BigUint::from(3 as u8);
+            item /= u128::from(3 as u8);
         }
-        if item.clone() % monkey.test_amount == Zero::zero() {
+        item %= mod_amount;
+        if item % monkey.test_amount == 0 {
             let true_pass_id = monkey.true_pass_id;
-            diff.entry(true_pass_id).or_insert(vec![]).push(item.clone());
+            diff.entry(true_pass_id).or_insert(vec![]).push(item);
         } else {
             let false_pass_id = monkey.false_pass_id;
-            diff.entry(false_pass_id).or_insert(vec![]).push(item.clone());
+            diff.entry(false_pass_id).or_insert(vec![]).push(item);
         }
     }
     diff
 }
 
-fn do_round(monkeys: &mut Vec<Monkey>) {
+fn do_round(monkeys: &mut Vec<Monkey>, mod_amount: u128) {
     for i in 0..monkeys.len() {
-        let item_diff = do_monkey_diff(&mut monkeys[i]);
+        let item_diff = do_monkey_diff(&mut monkeys[i], mod_amount);
         for (monkey_id, items) in item_diff {
             monkeys[monkey_id].items.extend(items);
         }
     }
 }
 
-fn part1(input: &str) -> usize {
-    let mut monkeys: Vec<Monkey> = input.split("\n\n").map(|group| Monkey::parse(group.split("\n").collect(), true)).collect();
-    for _ in 0..20 {
-        do_round(&mut monkeys);
+fn do_rounds(input: &str, is_bored: bool, rounds: usize) -> usize {
+    let mut monkeys: Vec<Monkey> = input.split("\n\n").map(|group| Monkey::parse(group.split("\n").collect(), is_bored)).collect();
+    let unique_divisors: HashSet<u128> = monkeys.iter().map(|monkey| monkey.test_amount).collect();
+    let mod_amount: u128 = unique_divisors.iter().fold(1, |a, b| a * b) as u128;
+    for _ in 0..rounds {
+        do_round(&mut monkeys, mod_amount);
     }
     monkeys.sort_by(|a, b| b.inspected_items.cmp(&a.inspected_items));
     monkeys[0].inspected_items * monkeys[1].inspected_items
 }
 
+fn part1(input: &str) -> usize {
+    do_rounds(input, true, 20)
+}
+
 fn part2(input: &str) -> usize {
-    let mut monkeys: Vec<Monkey> = input.split("\n\n").map(|group| Monkey::parse(group.split("\n").collect(), false)).collect();
-    let unique_divisors: HashSet<u128> = monkeys.iter().map(|monkey| monkey.test_amount).collect();
-    let mut global_divisor = One::one();
-    for divisor in unique_divisors {
-        global_divisor *= BigUint::from(divisor);
-    }
-    for i in 0..10_000 {
-        println!("{}", i);
-        do_round(&mut monkeys);
-        for mut monkey in monkeys {
-            for item in &mut monkey.items {
-                if item % global_divisor == 0 {
-                    *item /= global_divisor;
-                }
-            }
-        }
-    }
-    monkeys.sort_by(|a, b| b.inspected_items.cmp(&a.inspected_items));
-    println!("{}, {}", monkeys[0].inspected_items, monkeys[1].inspected_items);
-    monkeys[0].inspected_items * monkeys[1].inspected_items
+    do_rounds(input, false, 10_000)
 }
 
 pub fn run() {
