@@ -1,19 +1,24 @@
 use std::cmp::{max, min};
 use std::collections::HashMap;
+use std::ops::{RangeInclusive};
 
-#[derive(Copy, Clone)]
-pub struct Bounds<T = i128> where T: Ord {
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct Bounds<T = i128> where T: Ord + Copy {
     pub min: T,
     pub max: T,
 }
 
-impl<T> Bounds<T> where T: Ord {
+impl<T> Bounds<T> where T: Ord + Copy {
     pub fn update(&mut self, value: T) {
         if value < self.min {
             self.min = value;
         } else if value > self.max {
             self.max = value;
         }
+    }
+
+    pub fn to_range(&self) -> RangeInclusive<T> {
+        self.min..=self.max
     }
 }
 
@@ -81,6 +86,12 @@ pub enum GridDirection {
     Down,
 }
 
+impl GridDirection {
+    pub fn all() -> Vec<GridDirection> {
+        vec![GridDirection::Left, GridDirection::Right, GridDirection::Up, GridDirection::Down]
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Axis {
     Horizontal,
@@ -109,7 +120,7 @@ pub struct Grid<T> {
     _grid: HashMap<Point, T>,
 }
 
-impl<T> Grid<T> {
+impl<T: 'static> Grid<T> {
     pub fn new() -> Grid<T> {
         Grid {
             _x_bounds: Bounds {
@@ -145,8 +156,4 @@ impl<T> Grid<T> {
     pub fn get_y_bounds(&self) -> Bounds {
         self._y_bounds.clone()
     }
-
-    // pub fn get_visited_positions<I>(&self) -> I where I: Iterator<Item = (&Point, &T)> {
-    //     self._grid.iter()
-    // }
 }
