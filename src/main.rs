@@ -1,3 +1,5 @@
+extern crate core;
+
 mod days;
 mod common;
 mod vm;
@@ -12,7 +14,7 @@ fn main() {
     days::day8::run();
     days::day9::run();
     days::day10::run();
-    // days::day11::run();
-    // days::day12::run();
+    days::day11::run();
+    days::day12::run();
     days::day13::run();
 }
