@@ -82,8 +82,8 @@ fn parse_input(input: &str) -> HillMap {
         }
     }
 
-    assert_eq!(Bounds::<i128> { min: 0, max: width as i128 - 1 }, hill_map.graph.get_x_bounds());
-    assert_eq!(Bounds::<i128> { min: 0, max: height as i128 - 1 }, hill_map.graph.get_y_bounds());
+    assert_eq!(Bounds::new(0, width as i128 - 1), hill_map.graph.get_x_bounds());
+    assert_eq!(Bounds::new(0, height as i128 - 1), hill_map.graph.get_y_bounds());
 
     hill_map
 }

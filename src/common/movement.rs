@@ -6,15 +6,31 @@ use std::ops::{RangeInclusive};
 pub struct Bounds<T = i128> where T: Ord + Copy {
     pub min: T,
     pub max: T,
+    _has_had_update: bool
 }
 
 impl<T> Bounds<T> where T: Ord + Copy {
-    pub fn update(&mut self, value: T) {
-        if value < self.min {
-            self.min = value;
-        } else if value > self.max {
-            self.max = value;
+    pub fn new(min: T, max: T) -> Bounds<T> {
+        Bounds {
+            min,
+            max,
+            _has_had_update: false
         }
+    }
+
+    pub fn update(&mut self, value: T) {
+        if !self._has_had_update {
+            self.min = value;
+            self.max = value;
+        } else {
+            if value < self.min {
+                self.min = value;
+            } else if value > self.max {
+                self.max = value;
+            }
+        }
+
+        self._has_had_update = true;
     }
 
     pub fn to_range(&self) -> RangeInclusive<T> {
@@ -43,6 +59,12 @@ impl Point {
             GridDirection::Up => self.y += 1,
             GridDirection::Down => self.y -= 1
         }
+    }
+
+    pub fn get_moved_in_dir(&self, direction: GridDirection) -> Point {
+        let mut other = self.clone();
+        other.move_in_dir(direction);
+        other
     }
 
     pub fn move_along_axis(&mut self, axis: Axis, count: i128) {
@@ -123,14 +145,8 @@ pub struct Grid<T> {
 impl<T: 'static> Grid<T> {
     pub fn new() -> Grid<T> {
         Grid {
-            _x_bounds: Bounds {
-                min: 0,
-                max: 0,
-            },
-            _y_bounds: Bounds {
-                min: 0,
-                max: 0,
-            },
+            _x_bounds: Bounds::new(0, 0),
+            _y_bounds: Bounds::new(0, 0),
             _grid: HashMap::new(),
         }
     }
@@ -139,6 +155,10 @@ impl<T: 'static> Grid<T> {
         self._grid.insert(point, value);
         self._x_bounds.update(point.x);
         self._y_bounds.update(point.y);
+    }
+
+    pub fn remove(&mut self, point: Point) {
+        self._grid.remove(&point);
     }
 
     pub fn has_visited(&self, point: &Point) -> bool {
