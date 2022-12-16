@@ -14,8 +14,10 @@ fn main() {
     days::day8::run();
     days::day9::run();
     days::day10::run();
+    // todo: optimize these so I can run every day at once (:
     // days::day11::run();
     // days::day12::run();
-    days::day13::run();
-    days::day14::run();
+    // days::day13::run();
+    // days::day14::run();
+    days::day15::run();
 }

@@ -98,6 +98,10 @@ impl Point {
     pub fn magnitude(&self) -> f64 {
         ((self.x.pow(2) + self.y.pow(2)) as f64).sqrt()
     }
+
+    pub fn manhattan_dist(&self, other: &Point) -> u128 {
+        return ((self.x - other.x).abs() + (self.y - other.y).abs()) as u128
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
