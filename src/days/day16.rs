@@ -29,15 +29,20 @@ fn parse_input(input: &str) -> Vec<ValveData> {
 }
 
 fn max_flow_this_minute(valves: &HashMap<&str, ValveData>, open_valves: HashSet<&str>, minutes_remaining: u128, current_valve: &str) -> u128 {
-    let current_valve_data = valves.get(current_valve).unwrap();
-
     let pressure_released_this_minute = open_valves.iter().map(|&valve| valves.get(valve).unwrap().flow_rate).sum();
 
-    let max_flow_options = vec![];
+    if minutes_remaining == 0 {
+        return pressure_released_this_minute
+    }
 
-    if minutes_remaining > 0 {
+    // take some action
+
+    if valves.values().all(|valve| valve.flow_rate == 0 || open_valves.contains(valve.name)) {
 
     }
+
+    let current_valve_data = valves.get(current_valve).unwrap();
+
     0
 }
 
