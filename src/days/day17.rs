@@ -144,7 +144,6 @@ fn part1(input: &str) -> u128 {
         place_rock(&mut chamber, &pattern);
         patterns.push_back(pattern);
     }
-    render_grid(&chamber);
     chamber.floor_y
 }
 

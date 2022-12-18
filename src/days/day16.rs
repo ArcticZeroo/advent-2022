@@ -43,7 +43,7 @@ fn max_flow_this_minute(valves: &HashMap<&str, ValveData>, open_valves: HashSet<
 
     let current_valve_data = valves.get(current_valve).unwrap();
     let mut max_possible_flow = 0;
-    for other_valve_name in current_valve_data.tunnels {
+    for &other_valve_name in &current_valve_data.tunnels {
         max_possible_flow = max(max_possible_flow, pressure_released_this_minute + max_flow_this_minute(valves, open_valves.clone(), minutes_remaining - 1, other_valve_name));
     }
 
