@@ -1,5 +1,5 @@
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use itertools::max;
 use regex::Regex;
 use crate::common::movement::{Bounds, Point};
 use crate::common::read_input;
@@ -32,16 +32,23 @@ fn max_flow_this_minute(valves: &HashMap<&str, ValveData>, open_valves: HashSet<
     let pressure_released_this_minute = open_valves.iter().map(|&valve| valves.get(valve).unwrap().flow_rate).sum();
 
     if minutes_remaining == 0 {
-        return pressure_released_this_minute
+        return pressure_released_this_minute;
     }
 
     // take some action
 
     if valves.values().all(|valve| valve.flow_rate == 0 || open_valves.contains(valve.name)) {
-
+        return pressure_released_this_minute * (minutes_remaining + 1);
     }
 
     let current_valve_data = valves.get(current_valve).unwrap();
+    let mut max_possible_flow = 0;
+    for other_valve_name in current_valve_data.tunnels {
+        max_possible_flow = max(max_possible_flow, pressure_released_this_minute + max_flow_this_minute(valves, open_valves.clone(), minutes_remaining - 1, other_valve_name));
+    }
+
+    if !open_valves.contains(current_valve) {
+    }
 
     0
 }
