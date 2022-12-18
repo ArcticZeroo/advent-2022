@@ -1,6 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hash;
-use itertools::max;
+use std::ops::RangeInclusive;
+use itertools::{max, min};
 use regex::Regex;
 use crate::common::movement::Bounds;
 use crate::common::read_input;
@@ -26,52 +27,46 @@ struct Point3D {
 }
 
 impl Point3D {
-    pub fn get_axis_value(&self, axis: Axis3D) -> i128 {
+    pub fn zero() -> Point3D {
+        Point3D {
+            x: 0,
+            y: 0,
+            z: 0,
+        }
+    }
+
+    pub fn get_axis_value(&self, axis: Axis3D) -> &i128 {
         match axis {
-            Axis3D::X => self.x,
-            Axis3D::Y => self.y,
-            Axis3D::Z => self.z
+            Axis3D::X => &self.x,
+            Axis3D::Y => &self.y,
+            Axis3D::Z => &self.z
+        }
+    }
+
+    pub fn set_axis_value(&mut self, axis: Axis3D, value: i128) {
+        match axis {
+            Axis3D::X => self.x = value,
+            Axis3D::Y => self.y = value,
+            Axis3D::Z => self.z = value
         }
     }
 
     pub fn get_moved_in_axis(&self, axis: Axis3D, amount: i128) -> Point3D {
-        match axis {
-            Axis3D::X => Point3D {
-                x: self.x + amount,
-                y: self.y,
-                z: self.z,
-            },
-            Axis3D::Y => Point3D {
-                x: self.x,
-                y: self.y + amount,
-                z: self.z,
-            },
-            Axis3D::Z => Point3D {
-                x: self.x,
-                y: self.y,
-                z: self.z + amount,
-            },
-        }
+        self.get_with_axis_value(axis, self.get_axis_value(axis) + amount)
     }
 
     pub fn get_with_axis_value(&self, axis: Axis3D, value: i128) -> Point3D {
-        match axis {
-            Axis3D::X => Point3D {
-                x: value,
-                y: self.y,
-                z: self.z,
-            },
-            Axis3D::Y => Point3D {
-                x: self.x,
-                y: value,
-                z: self.z,
-            },
-            Axis3D::Z => Point3D {
-                x: self.x,
-                y: self.y,
-                z: value,
-            },
-        }
+        let mut other = self.clone();
+        other.set_axis_value(axis, value);
+        other
+    }
+
+    pub fn neighbors(&self) -> Vec<Point3D> {
+        let axis_movements = [-1, 1];
+        Axis3D::all()
+            .iter()
+            .flat_map(|&axis| axis_movements.iter().map(move |&movement| self.get_moved_in_axis(axis, movement)))
+            .collect()
     }
 }
 
@@ -87,70 +82,69 @@ fn parse_input(input: &str) -> Vec<Point3D> {
 }
 
 fn part1(input: &str) -> u128 {
-    let axis_movements = [-1, 1];
     let points: HashSet<Point3D> = HashSet::from_iter(parse_input(input));
     points
         .iter()
         .map(|point|
-            Axis3D::all()
+            point.neighbors()
                 .iter()
-                .map(|&axis| axis_movements.iter().filter(|&&movement| !points.contains(&point.get_moved_in_axis(axis, movement))).count() as u128)
-                .sum::<u128>()
+                .filter(|&neighbor| !points.contains(neighbor))
+                .count() as u128
         )
         .sum()
 }
 
-fn part2(input: &str) -> u128 {
-    let points: HashSet<Point3D> = HashSet::from_iter(parse_input(input));
+fn is_in_bounds(point: &Point3D, ranges_by_axis: &HashMap<&Axis3D, RangeInclusive<i128>>) -> bool {
+    Axis3D::all()
+        .iter()
+        .all(|axis| ranges_by_axis.get(axis).unwrap().contains(point.get_axis_value(*axis)))
+}
+
+fn count_open_faces(points: &HashSet<Point3D>) -> u128 {
     let mut bounds_by_axis: HashMap<Axis3D, Bounds> = HashMap::new();
 
-    for point in &points {
+    for point in points {
         for axis in Axis3D::all() {
-            // let axis_entry = points_by_axis.entry(axis).or_insert_with(|| HashMap::new());
-            // let value_entry = axis_entry.entry(point.get_axis_value(axis)).or_insert_with(|| HashSet::new());
-            // value_entry.insert(point);
             bounds_by_axis
                 .entry(axis)
                 .or_insert_with(|| Bounds::new(0, 0))
-                .update(point.get_axis_value(axis));
+                .update(*point.get_axis_value(axis));
         }
     }
 
-    points
-        .iter()
-        .map(|point| {
-            println!("\nChecking for point {:?}", point);
-            let mut exterior_faces = 0;
-            for axis in Axis3D::all() {
-                let axis_bounds = bounds_by_axis.get(&axis).unwrap();
+    let expanded_bounds_by_axis: HashMap<&Axis3D, Bounds> = HashMap::from_iter(bounds_by_axis.iter().map(|(axis, bounds)| (axis, Bounds::new(bounds.min - 1, bounds.max + 1))));
+    let ranges_by_axis = HashMap::from_iter(expanded_bounds_by_axis.iter().map(|(&axis, bounds)| (axis, bounds.to_range())));
 
-                println!("Checking on axis {:?}", axis);
-                println!("Axis bounds: {:?}", axis_bounds);
+    let mut min_point = Point3D::zero();
+    for axis in Axis3D::all() {
+        min_point.set_axis_value(axis, expanded_bounds_by_axis.get(&axis).unwrap().min);
+    }
 
-                let mut min_bounds = axis_bounds.min..point.get_axis_value(axis);
-                let mut max_bounds = point.get_axis_value(axis) + 1..=axis_bounds.max;
+    let mut open_faces = 0;
+    let mut visited: HashSet<Point3D> = HashSet::new();
+    let mut queue: VecDeque<Point3D> = VecDeque::new();
 
-                println!("Is face open on negative {:?} axis? {}", axis, !points.contains(&point.get_moved_in_axis(axis, -1)));
+    queue.push_back(min_point);
+    visited.insert(min_point);
 
-                if min_bounds.all(|axis_value| !points.contains(&point.get_with_axis_value(axis, axis_value))) {
-                    println!("Negative {:?} axis is clear", axis);
-                    exterior_faces += 1;
-                } else {
-                    println!("Negative {:?} axis is not clear", axis);
-                }
-
-                println!("Is face open on positive {:?} axis? {}", axis, !points.contains(&point.get_moved_in_axis(axis, 1)));
-
-                if max_bounds.all(|axis_value| !points.contains(&point.get_with_axis_value(axis, axis_value))) {
-                    println!("Positive {:?} axis is clear", axis);
-                    exterior_faces += 1;
-                } else {
-                    println!("Positive {:?} axis is not clear", axis);
-                }
+    while !queue.is_empty() {
+        let next = queue.pop_front().unwrap();
+        for neighbor in next.neighbors() {
+            if points.contains(&neighbor) {
+                open_faces += 1;
+            } else if !visited.contains(&neighbor) && is_in_bounds(&neighbor, &ranges_by_axis) {
+                queue.push_back(neighbor);
+                visited.insert(neighbor);
             }
-            exterior_faces
-        })
-        .sum()
+        }
+    }
+
+    open_faces
+}
+
+fn part2(input: &str) -> u128 {
+    let points: HashSet<Point3D> = HashSet::from_iter(parse_input(input));
+    count_open_faces(&points)
 }
 
 pub fn run() {
