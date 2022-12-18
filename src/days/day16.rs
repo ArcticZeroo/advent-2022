@@ -1,5 +1,7 @@
-use std::cmp::max;
-use std::collections::{HashMap, HashSet};
+use std::cmp::{max, Reverse};
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
+use itertools::{all, Itertools};
+use priority_queue::PriorityQueue;
 use regex::Regex;
 use crate::common::movement::{Bounds, Point};
 use crate::common::read_input;
@@ -11,7 +13,7 @@ struct ValveData<'a> {
 }
 
 fn parse_input(input: &str) -> Vec<ValveData> {
-    let valve_regex = Regex::new(r"Valve (?<name>[A-Z]{2}) has flow rate=(?<rate>\d+); .+? (?<tunnels>(?:[A-Z]{2}(?:, )?)+)").unwrap();
+    let valve_regex = Regex::new(r"Valve (?P<name>[A-Z]{2}) has flow rate=(?P<rate>\d+); .+? (?P<tunnels>(?:[A-Z]{2}(?:, )?)+)").unwrap();
 
     valve_regex.captures_iter(input)
         .map(|capture| {
@@ -28,33 +30,104 @@ fn parse_input(input: &str) -> Vec<ValveData> {
         .collect()
 }
 
-fn max_flow_this_minute(valves: &HashMap<&str, ValveData>, open_valves: HashSet<&str>, minutes_remaining: u128, current_valve: &str) -> u128 {
-    let pressure_released_this_minute = open_valves.iter().map(|&valve| valves.get(valve).unwrap().flow_rate).sum();
+fn dijkstra_step_count<'a>(valves: &'a HashMap<&'a str, &'a ValveData<'a>>, start_valve_name: &'a str) -> HashMap<&'a str, u128> {
+    let mut distances: HashMap<&str, u128> = HashMap::from_iter(valves.keys().into_iter().map(|&valve_name| (valve_name, u128::MAX)));
+    distances.insert(start_valve_name, 0);
 
-    if minutes_remaining == 0 {
-        return pressure_released_this_minute;
+    let mut queue: PriorityQueue<&str, Reverse<u128>> = PriorityQueue::new();
+    for (&valve_name, &valve_data) in valves {
+        queue.push(valve_name, Reverse(*distances.get(valve_name).unwrap()));
     }
 
-    // take some action
+    while !queue.is_empty() {
+        let (current_name, Reverse(distance)) = queue.pop().unwrap();
+        let current_data = *valves.get(current_name).unwrap();
+        let current_neighbor_distance = distance + 1;
 
-    if valves.values().all(|valve| valve.flow_rate == 0 || open_valves.contains(valve.name)) {
-        return pressure_released_this_minute * (minutes_remaining + 1);
+        for &neighbor_name in &current_data.tunnels {
+            let existing_neighbor_distance = *distances.get(neighbor_name).unwrap();
+
+            if current_neighbor_distance < existing_neighbor_distance {
+                distances.insert(neighbor_name, current_neighbor_distance);
+                queue.change_priority(neighbor_name, Reverse(current_neighbor_distance));
+            }
+        }
     }
 
-    let current_valve_data = valves.get(current_valve).unwrap();
-    let mut max_possible_flow = 0;
-    for &other_valve_name in &current_valve_data.tunnels {
-        max_possible_flow = max(max_possible_flow, pressure_released_this_minute + max_flow_this_minute(valves, open_valves.clone(), minutes_remaining - 1, other_valve_name));
+    distances
+}
+
+struct PressureSearchData<'a> {
+    all_valve_distances: &'a HashMap<&'a str, HashMap<&'a str, u128>>,
+    valves: &'a HashMap<&'a str, &'a ValveData<'a>>,
+    open_valves: HashSet<&'a str>,
+    minutes_remaining: u128,
+    current_valve_name: &'a str,
+}
+
+fn open_next_valve(data: PressureSearchData) -> u128 {
+    let PressureSearchData { all_valve_distances, valves, open_valves, minutes_remaining, current_valve_name } = data;
+
+    let current_pressure_per_minute: u128 = valves.iter().filter_map(|(&valve_name, &valve)| {
+        if open_valves.contains(valve_name) {
+            Some(valve.flow_rate)
+        } else {
+            None
+        }
+    }).sum();
+
+    let unopened_valves: Vec<&ValveData> = valves.iter().filter_map(|(&valve_name, &valve)| {
+        if valve.flow_rate == 0 || open_valves.contains(valve_name) {
+            None
+        } else {
+            Some(valve)
+        }
+    }).collect();
+
+    if unopened_valves.is_empty() {
+        return minutes_remaining * current_pressure_per_minute;
     }
 
-    if !open_valves.contains(current_valve) {
+    let valve_distances = all_valve_distances.get(current_valve_name).unwrap();
+
+    let mut max_flow_found = 0;
+    for next_valve_to_open in unopened_valves {
+        let minutes_spent_opening_valve = valve_distances.get(next_valve_to_open.name).unwrap() + 1;
+        if minutes_spent_opening_valve > minutes_remaining {
+            continue;
+        }
+        let pressure_released_while_moving = current_pressure_per_minute * minutes_spent_opening_valve;
+        let mut open_valves_with_next = open_valves.clone();
+        open_valves_with_next.insert(next_valve_to_open.name);
+        // Takes 1 minute to open the valve, so subtract 1 extra
+        max_flow_found = max(max_flow_found, pressure_released_while_moving + open_next_valve(PressureSearchData {
+            all_valve_distances,
+            valves,
+            open_valves: open_valves_with_next,
+            minutes_remaining: minutes_remaining - minutes_spent_opening_valve,
+            current_valve_name: next_valve_to_open.name
+        }));
     }
 
-    0
+    max_flow_found
 }
 
 fn part1(input: &str) -> u128 {
-    0
+    let valves = parse_input(input);
+    let valves_by_name = HashMap::from_iter(valves.iter().map(|valve| (valve.name, valve)));
+
+    let mut all_valve_distances: HashMap<&str, HashMap<&str, u128>> = HashMap::new();
+    for valve in &valves {
+        all_valve_distances.insert(valve.name, dijkstra_step_count(&valves_by_name, valve.name));
+    }
+
+    open_next_valve(PressureSearchData {
+        all_valve_distances: &all_valve_distances,
+        open_valves: HashSet::new(),
+        valves: &valves_by_name,
+        current_valve_name: "AA",
+        minutes_remaining: 30
+    })
 }
 
 fn part2(input: &str) -> u128 {
@@ -83,7 +156,7 @@ Valve JJ has flow rate=21; tunnel leads to valve II";
 
     #[test]
     pub fn part1() {
-        assert_eq!(26, super::part1(INPUT));
+        assert_eq!(1651, super::part1(INPUT));
     }
 
     #[test]
