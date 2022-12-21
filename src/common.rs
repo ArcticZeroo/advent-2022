@@ -22,3 +22,19 @@ pub fn string_to_set(s: &str) -> HashSet<char> {
 pub fn char_alphabet_position(value: char, is_lowercase: bool) -> u32 {
     value as u32 - if is_lowercase { 'a' as u32 } else { 'A' as u32 }
 }
+
+pub fn wrap_value(value: i128, wrap_around: i128) -> i128 {
+    if value < 0 {
+        value + (wrap_around * ((value.abs() / wrap_around) + 1))
+    } else {
+        value % wrap_around
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+enum Operation {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
