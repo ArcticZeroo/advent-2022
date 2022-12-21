@@ -32,9 +32,21 @@ pub fn wrap_value(value: i128, wrap_around: i128) -> i128 {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-enum Operation {
+pub enum BinaryOperation {
     Add,
     Subtract,
     Multiply,
     Divide,
+}
+
+impl BinaryOperation {
+    pub fn from_str(value: &str) -> BinaryOperation {
+        match value {
+            "*" => BinaryOperation::Multiply,
+            "/" => BinaryOperation::Divide,
+            "+" => BinaryOperation::Add,
+            "-" => BinaryOperation::Subtract,
+            _ => panic!()
+        }
+    }
 }
