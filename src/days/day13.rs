@@ -119,7 +119,7 @@ fn part2(input: &Vec<ListPair>) -> usize {
                 if child_list.len() != 1 {
                     continue;
                 }
-                if let (ListItem::Value(value)) = child_list.first().unwrap() {
+                if let ListItem::Value(value) = child_list.first().unwrap() {
                     match value {
                         2 => first_divider_index = i + 1,
                         6 => return first_divider_index * (i + 1),

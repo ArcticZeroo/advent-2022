@@ -1,9 +1,11 @@
+use std::cmp::max;
 use std::collections::HashMap;
 use std::ops::{Add, Div, Mul, Sub};
 use crate::common::{BinaryOperation, read_input};
 
+#[derive(Copy, Clone)]
 enum MonkeyJob<'a> {
-    Yell(i64),
+    Yell(i128),
     Math(&'a str, BinaryOperation, &'a str)
 }
 
@@ -18,7 +20,7 @@ where T: Add<Output = T> + Sub<Output = T> + Div<Output = T> + Mul<Output = T>
     }
 }
 
-fn resolve_job(monkeys: &HashMap<&str, MonkeyJob>, job: &MonkeyJob) -> i64 {
+fn resolve_job(monkeys: &HashMap<&str, MonkeyJob>, job: &MonkeyJob) -> i128 {
     match job {
         MonkeyJob::Yell(value) => *value,
         MonkeyJob::Math(left_monkey_name, operation, right_monkey_name) => {
@@ -49,117 +51,82 @@ fn parse_input(input: &str) -> HashMap<&str, MonkeyJob> {
     }).collect()
 }
 
-fn part1(input: &str) -> i64 {
+fn part1(input: &str) -> i128 {
     let monkeys = parse_input(input);
     resolve_job(&monkeys, monkeys.get("root").unwrap())
 }
 
-enum ResolvedValue {
-    // In test + input, it is always humn (aka x) - other
-    X(f64 /*multiplier aka left*x */, f64 /*right*/),
-    Immediate(f64)
-}
-
-impl ResolvedValue {
-    fn _do_x_operation(x_multiplier: f64, x_subtract: f64, operation: BinaryOperation, other_value: f64, is_x_on_left: bool) -> ResolvedValue {
-        match operation {
-            BinaryOperation::Add => ResolvedValue::X(x_multiplier, x_subtract - other_value),
-            BinaryOperation::Subtract => ResolvedValue::X(x_multiplier, other_value + x_subtract),
-            BinaryOperation::Multiply => ResolvedValue::X(x_multiplier * other_value as f64, x_subtract * other_value),
-            BinaryOperation::Divide => {
-                if is_x_on_left {
-                    ResolvedValue::X(x_multiplier / other_value as f64, x_subtract / other_value)
-                } else {
-                    ResolvedValue::X(other_value as f64 / x_multiplier, other_value / x_subtract)
-                }
-            }
+fn contains_monkey(monkeys: &HashMap<&str, MonkeyJob>, target_monkey: &str, current_monkey: &MonkeyJob) -> bool {
+    match current_monkey {
+        MonkeyJob::Yell(_) => false,
+        MonkeyJob::Math(left_name, _, right_name) => {
+            *left_name == target_monkey
+                || *right_name == target_monkey
+                || contains_monkey(monkeys, target_monkey, monkeys.get(left_name).unwrap())
+                || contains_monkey(monkeys, target_monkey, monkeys.get(right_name).unwrap())
         }
     }
+}
 
-    pub fn do_operation(&self, operation: BinaryOperation, other: ResolvedValue) -> ResolvedValue {
-        if let ResolvedValue::X(x_multiplier, x_subtract) = self {
-            if let ResolvedValue::Immediate(other_value) = other {
-                // (x - a) ??? b
-                ResolvedValue::_do_x_operation(*x_multiplier, *x_subtract, operation, other_value, true /*is_x_on_left*/)
+const HUMAN_MONKEY_NAME: &str = "humn";
+
+fn check_does_increasing_x_increase_result(mut monkeys: HashMap<&str, MonkeyJob>, job: &MonkeyJob) -> bool {
+    monkeys.insert(HUMAN_MONKEY_NAME, MonkeyJob::Yell(50));
+    let a = resolve_job(&monkeys, job);
+    monkeys.insert(HUMAN_MONKEY_NAME, MonkeyJob::Yell(100));
+    let b = resolve_job(&monkeys, job);
+    return a < b;
+}
+
+fn find_human_value(mut monkeys: HashMap<&str, MonkeyJob>, job_with_human: &MonkeyJob, job_without_human: &MonkeyJob) -> i128 {
+    let without_human_value = resolve_job(&monkeys, job_without_human);
+    let does_increasing_x_increase_result = check_does_increasing_x_increase_result(monkeys.clone(), job_with_human);
+    let mut min = i128::MIN / 10_000;
+    let mut max = i128::MAX / 10_000;
+    loop {
+        let current = ((max - min) / 2) + min;
+
+        monkeys.insert(HUMAN_MONKEY_NAME, MonkeyJob::Yell(current));
+
+        let with_human_value = resolve_job(&monkeys, job_with_human);
+
+        if with_human_value == without_human_value {
+            return current;
+        }
+
+        if with_human_value < without_human_value {
+            if does_increasing_x_increase_result {
+                min = current;
             } else {
-                panic!();
-            }
-        } else if let ResolvedValue::X(x_multiplier, x_subtract) = other {
-            if let ResolvedValue::Immediate(other_value) = self {
-                // b ??? (x - a)
-                ResolvedValue::_do_x_operation(x_multiplier, x_subtract, operation, *other_value, false /*is_x_on_left*/)
-            } else {
-                panic!();
+                max = current;
             }
         } else {
-            if let ResolvedValue::Immediate(self_value) = self {
-                if let ResolvedValue::Immediate(other_value) = other {
-                    ResolvedValue::Immediate(do_operation(*self_value, operation, other_value))
-                } else {
-                    panic!();
-                }
+            if does_increasing_x_increase_result {
+                max = current;
             } else {
-                panic!();
+                min = current;
             }
+        }
+
+        if min == max {
+            panic!("Could not find value");
         }
     }
 }
 
-fn resolve_job_with_x(monkeys: &HashMap<&str, MonkeyJob>, job: &MonkeyJob) -> ResolvedValue {
-    match job {
-        MonkeyJob::Yell(value) => ResolvedValue::Immediate(*value as f64),
-        MonkeyJob::Math(left_monkey_name, operation, right_monkey_name) => {
-            let left_monkey_job = monkeys.get(left_monkey_name).unwrap();
-            let right_monkey_job = monkeys.get(right_monkey_name).unwrap();
-
-            if *left_monkey_name == "humn" {
-                let right_resolved = resolve_job_with_x(monkeys, right_monkey_job);
-                if let ResolvedValue::Immediate(right_value) = right_resolved {
-                    return ResolvedValue::X(1.0, right_value)
-                } else {
-                    panic!();
-                }
-            }
-
-            let left_resolved = resolve_job_with_x(monkeys, left_monkey_job);
-            let right_resolved = resolve_job_with_x(monkeys, right_monkey_job);
-
-            left_resolved.do_operation(*operation, right_resolved)
-        }
-        _ => panic!()
-    }
-}
-
-fn find_inequality_value(x_multiplier: f64, x_subtract: f64, other_value: f64) -> f64 {
-    (other_value + x_subtract) / x_multiplier
-}
-
-fn part2(input: &str) -> f64 {
-    let monkeys = parse_input(input);
+fn part2(input: &str) -> i128 {
+    let mut monkeys = parse_input(input);
 
     if let MonkeyJob::Math(root_left_name, _, root_right_name) = monkeys.get("root").unwrap() {
         let root_left_job = monkeys.get(root_left_name).unwrap();
         let root_right_job = monkeys.get(root_right_name).unwrap();
 
-        let root_left_resolved = resolve_job_with_x(&monkeys, root_left_job);
-        let root_right_resolved = resolve_job_with_x(&monkeys, root_right_job);
+        let is_monkey_in_left = contains_monkey(&monkeys, HUMAN_MONKEY_NAME, root_left_job);
 
-        if let ResolvedValue::X(x_multiplier, x_subtract) = root_left_resolved {
-            if let ResolvedValue::Immediate(right_value) = root_right_resolved {
-                // (ax - b) = c
-                find_inequality_value(x_multiplier, x_subtract, right_value)
-            } else {
-                panic!();
-            }
-        } else if let ResolvedValue::X(x_multiplier, x_subtract) = root_right_resolved {
-            if let ResolvedValue::Immediate(left_value) = root_left_resolved {
-                // c = (ax - b)
-                find_inequality_value(x_multiplier, x_subtract, left_value)
-            } else {
-                panic!();
-            }
+        if is_monkey_in_left {
+            find_human_value(monkeys.clone(), root_left_job, root_right_job)
         } else {
-            panic!("x is missing");
+            find_human_value(monkeys.clone(), root_right_job, root_left_job)
         }
     } else {
         panic!();
@@ -198,6 +165,6 @@ hmdt: 32";
 
     #[test]
     pub fn part2() {
-        assert_eq!(301.0, super::part2(INPUT));
+        assert_eq!(301, super::part2(INPUT));
     }
 }
